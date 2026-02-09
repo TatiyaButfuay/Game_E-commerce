@@ -1,6 +1,4 @@
 package com.ecom.controller;
-import com.ecom.service.AdminLogService;
-import jakarta.servlet.http.HttpServletRequest;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -8,19 +6,12 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.security.Principal;
-import java.time.LocalDate;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
-import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.domain.Page;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.csrf.CsrfToken;
@@ -36,19 +27,17 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import com.ecom.model.AdminLog;
 import com.ecom.model.Category;
-import com.ecom.model.Pet;
 import com.ecom.model.Product;
 import com.ecom.model.ProductOrder;
 import com.ecom.model.UserDtls;
+import com.ecom.service.AdminLogService;
 import com.ecom.service.CartService;
 import com.ecom.service.CategoryService;
 import com.ecom.service.FileService;
 import com.ecom.service.OrderService;
-import com.ecom.service.PetService;
 import com.ecom.service.ProductService;
 import com.ecom.service.SiteSettingService;
 import com.ecom.service.UserService;
@@ -56,6 +45,7 @@ import com.ecom.util.BucketType;
 import com.ecom.util.CommonUtil;
 import com.ecom.util.OrderStatus;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 
 @Controller
@@ -87,9 +77,6 @@ public class AdminController {
 	@Autowired
 	private AdminLogService adminLogService;
 	
-	@Autowired
-	private PetService petService;
-
 	@Autowired
 	private FileService fileService;
 
@@ -829,174 +816,6 @@ public class AdminController {
 	    
 	    return "admin/index";
 	}
-
-	@GetMapping("/pet")
-	public String adminShowPets(Model model, Principal principal) {
-	    if (principal == null) {
-	        return "redirect:/login";
-	    }
-
-	    List<Pet> pets = petService.getAllPets(); // Use the injected instance
-	    model.addAttribute("pets", pets);
-
-	    if (pets == null || pets.isEmpty()) {
-	        model.addAttribute("adminnoPetsMessage", "There's no pets added.");
-	    }
-
-	    return "admin/pet"; 
-	}
-
-	@PostMapping("/pet/delete/{id}")
-	public String deletePet(@PathVariable("id") int petId, HttpSession session, Principal principal) {
-	    try {
-	        if (principal == null) {
-	            return "redirect:/signin";
-	        }
-
-	        String email = principal.getName();
-	        UserDtls user = userService.getUserByEmail(email);
-
-	        if (user == null) {
-	            return "redirect:/signin";
-	        }
-
-	        Pet pet = petService.getPetById(petId);
-	        if (pet == null) {
-	            session.setAttribute("adminErrorNotPMsg",
-	                    "Pet not found or you don't have permission to delete this pet");
-	            return "redirect:/admin/pet";
-	        }
-
-	        // Delete image file if not default
-	        if (pet.getImagePet() != null && !pet.getImagePet().equals("/img/pet_img/default.jpg")) {
-	            try {
-	                String imagePath = "src/main/resources/static" + pet.getImagePet();
-	                Files.deleteIfExists(Paths.get(imagePath));
-	            } catch (Exception e) {
-	                System.err.println("Failed to delete image file: " + e.getMessage());
-	            }
-	        }
-
-	        petService.deletePet(petId);
-	        
-	        // Add admin logging
-	        String ipAddress = getClientIpAddress(request);
-	        adminLogService.logAction(
-	            user.getEmail(),
-	            user.getName(),
-	            "DELETE_PET",
-	            "Deleted pet ID: " + petId + " (Name: " + pet.getName() + ")",
-	            ipAddress
-	        );
-	        
-	        session.setAttribute("adminSuccDPMsg", "Pet deleted successfully!");
-
-	    } catch (Exception e) {
-	        e.printStackTrace();
-	        session.setAttribute("adminErrorDPMsg", "Pet deletion failed: " + e.getMessage());
-	    }
-
-	    return "redirect:/admin/pet";
-	}
-
-
-
-	// Edit pet - show form
-	@GetMapping("/pet/edit/{id}")
-	public String showEditPetForm(@PathVariable("id") int petId, Model model, HttpSession session,
-	        Principal principal) {
-	    if (principal == null) {
-	        return "redirect:/login";
-	    }
-
-	    Pet pet = petService.getPetById(petId); // Use injected instance
-	    if (pet == null) {
-	        session.setAttribute("adminErrorNoPetMsg", "not found or you don't have permission to edit this pet");
-	        return "redirect:/admin/pet";
-	    }
-
-	    List<UserDtls> owners = userService.getAllUsers()
-	                                       .stream()
-	                                       .filter(u -> !"ROLE_ADMIN".equals(u.getRole()))
-	                                       .collect(Collectors.toList());
-
-	    model.addAttribute("pet", pet);
-	    model.addAttribute("owners", owners);
-	    return "admin/edit_pet";
-	}
-
-
-	// Edit pet - handle form submission
-	@PostMapping("/pet/edit/{id}")
-	public String updatePet(@RequestParam String name,
-	                        @RequestParam String type,
-	                        @RequestParam String breed,
-	                        @RequestParam String description,
-	                        @RequestParam("owner.id") int ownerId,
-	                        @RequestParam("imagePet") MultipartFile imageFile,
-	                        @PathVariable("id") int petId,
-	                        HttpSession session,
-	                        Principal principal) {
-	    if (principal == null) {
-	        return "redirect:/login";
-	    }
-
-	    Pet existingPet = petService.getPetById(petId);
-	    if (existingPet == null) {
-	        session.setAttribute("adminErrorNoPetMsg", "Not found or you don't have permission to edit this pet");
-	        return "redirect:/admin/pet";
-	    }
-
-	    try {
-	        existingPet.setName(name);
-	        existingPet.setType(type);
-	        existingPet.setBreed(breed);
-	        existingPet.setDescription(description);
-
-	        if (ownerId > 0) {
-	            UserDtls owner = userService.getUserById(ownerId);
-	            if (owner != null) {
-	                existingPet.setOwner(owner);
-	            }
-	        }
-
-	        if (!imageFile.isEmpty()) {
-	            String imageUrl = commonUtil.getImageUrl(imageFile, BucketType.PETPROFILE.getId());
-	            existingPet.setImagePet(imageUrl);
-	            String uploadDir = System.getProperty("user.dir") + "/uploads/pet_img/";
-	            File uploadFolder = new File(uploadDir);
-	            if (!uploadFolder.exists()) { uploadFolder.mkdirs(); }
-	            Path path = Paths.get(uploadDir + imageFile.getOriginalFilename());
-	            Files.copy(imageFile.getInputStream(), path, StandardCopyOption.REPLACE_EXISTING);
-	            fileService.uploadFileS3(imageFile, 4);
-	        }
-
-	        petService.updatePet(existingPet);
-	        
-	        // Add admin logging
-	        String email = principal.getName();
-	        UserDtls user = userService.getUserByEmail(email);
-	        String ipAddress = getClientIpAddress(request);
-	        adminLogService.logAction(
-	            user.getEmail(),
-	            user.getName(),
-	            "UPDATE_PET",
-	            "Updated pet ID: " + petId + " (Name: " + name + ")",
-	            ipAddress
-	        );
-	        
-	        session.setAttribute("succUPMsg", "updated successfully!");
-	        
-	    } catch (Exception e) {  // Changed from IOException to Exception
-	        e.printStackTrace();
-	        session.setAttribute("errorUPMsg", "update failed: " + e.getMessage());
-	    }
-
-	    return "redirect:/admin/pet";
-	}
-
-
-
 
 
 }

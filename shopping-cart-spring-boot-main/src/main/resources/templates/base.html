@@ -56,9 +56,7 @@ body {
     var BUCKETS = {
         category:   '[[${awsCategoryBucket}]]',
         product:    '[[${awsProductBucket}]]',
-        profile:    '[[${awsProfileBucket}]]',
-        petprofile: '[[${awsPetprofileBucket}]]',
-        petpost:    '[[${awsPetpostBucket}]]'
+        profile:    '[[${awsProfileBucket}]]'
     };
 
     // Map: bucket name → local path prefix
@@ -66,8 +64,6 @@ body {
     LOCAL_PATHS[BUCKETS.category]   = '/img/category_img/';
     LOCAL_PATHS[BUCKETS.product]    = '/img/product_img/';
     LOCAL_PATHS[BUCKETS.profile]    = '/img/profile_img/';
-    LOCAL_PATHS[BUCKETS.petprofile] = '/img/pet_img/';
-    LOCAL_PATHS[BUCKETS.petpost]    = '/upload/posts/';
 
     // Convert an AWS S3 URL to a local path
     function awsToLocal(src) {
@@ -88,9 +84,6 @@ body {
         if (src.includes('/category_img/'))  return 'https://' + BUCKETS.category + '.s3.amazonaws.com/' + filename;
         if (src.includes('/product_img/'))   return 'https://' + BUCKETS.product + '.s3.amazonaws.com/' + filename;
         if (src.includes('/profile_img/'))   return 'https://' + BUCKETS.profile + '.s3.amazonaws.com/' + filename;
-        if (src.includes('/pet_img/'))       return 'https://' + BUCKETS.petprofile + '.s3.amazonaws.com/' + filename;
-        if (src.includes('/posts/') || src.includes('/upload/posts/'))
-            return 'https://' + BUCKETS.petpost + '.s3.amazonaws.com/' + filename;
         return null;
     }
 
@@ -229,13 +222,6 @@ body {
 						<li class="nav-item"><a class="nav-link active"
 							aria-current="page" href="/user/wallet"> <i
 								class="fa-solid fa-wallet"></i> Wallet
-						</a></li>
-					</th:block>
-
-					<th:block th:if="${user != null and user.role != 'ROLE_ADMIN'}">
-						<li class="nav-item"><a class="nav-link active"
-							aria-current="page" href="/community"> <i
-								class="fa-solid fa-people-group"></i> Community
 						</a></li>
 					</th:block>
 
