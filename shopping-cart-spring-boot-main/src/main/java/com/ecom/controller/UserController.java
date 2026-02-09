@@ -24,6 +24,7 @@ import com.ecom.model.UserDtls;
 import com.ecom.service.CartService;
 import com.ecom.service.CategoryService;
 import com.ecom.service.FileService;
+import com.ecom.service.GameLibraryService;
 import com.ecom.service.OrderService;
 import com.ecom.service.UserService;
 import com.ecom.service.WalletService;
@@ -58,6 +59,9 @@ public class UserController {
 
 	@Autowired
 	private WalletService walletService;
+
+	@Autowired
+	private GameLibraryService gameLibraryService;
 
 	@GetMapping("/")
 	public String home() {
@@ -96,6 +100,11 @@ public class UserController {
 	@GetMapping("/addCart")
 	public String addToCart(@RequestParam Integer pid, @RequestParam Integer uid, HttpSession session) {
 	    try {
+	        // Check if user already owns this game
+	        if (gameLibraryService.isGameOwned(uid, pid)) {
+	            session.setAttribute("errorMsg", "You already own this game!");
+	            return "redirect:/product/" + pid;
+	        }
 	        Cart saveCart = cartService.saveCart(pid, uid);
 	        if (ObjectUtils.isEmpty(saveCart)) {
 	            session.setAttribute("errorMsg", "Product add to cart failed");
