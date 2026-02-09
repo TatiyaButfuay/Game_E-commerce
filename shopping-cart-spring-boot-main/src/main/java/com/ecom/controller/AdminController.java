@@ -41,6 +41,7 @@ import com.ecom.service.OrderService;
 import com.ecom.service.ProductService;
 import com.ecom.service.SiteSettingService;
 import com.ecom.service.UserService;
+import com.ecom.service.WalletService;
 import com.ecom.util.BucketType;
 import com.ecom.util.CommonUtil;
 import com.ecom.util.OrderStatus;
@@ -82,6 +83,9 @@ public class AdminController {
 
 	@Autowired
 	private SiteSettingService siteSettingService;
+
+	@Autowired
+	private WalletService walletService;
 
 
 
@@ -353,17 +357,37 @@ public class AdminController {
 
 	@PostMapping("/saveProduct")
 	public String saveProduct(@ModelAttribute Product product, @RequestParam("file") MultipartFile image,
+	        @RequestParam(value = "files", required = false) MultipartFile[] extraImages,
 	        HttpSession session, Principal p) throws IOException {
 
 	    UserDtls admin = commonUtil.getLoggedInUserDetails(p);
 	    String ipAddress = getClientIpAddress(request);
 
-	    //String imageName = image.isEmpty() ? "default.jpg" : image.getOriginalFilename();
 	    String imageUrl = commonUtil.getImageUrl(image, BucketType.PRODUCT.getId());
 	    product.setImage(imageUrl);
-//	    product.setImage(imageName);
 	    product.setDiscount(0);
 	    product.setDiscountPrice(product.getPrice());
+	    
+	    // Handle multiple extra images
+	    if (extraImages != null && extraImages.length > 0) {
+	        StringBuilder imagesList = new StringBuilder();
+	        String extraUploadDir = System.getProperty("user.dir") + "/uploads/product_img/";
+	        File extraFolder = new File(extraUploadDir);
+	        if (!extraFolder.exists()) { extraFolder.mkdirs(); }
+	        
+	        for (MultipartFile extraImg : extraImages) {
+	            if (!extraImg.isEmpty()) {
+	                String extraUrl = commonUtil.getImageUrl(extraImg, BucketType.PRODUCT.getId());
+	                if (imagesList.length() > 0) imagesList.append(",");
+	                imagesList.append(extraUrl);
+	                Path extraPath = Paths.get(extraUploadDir + extraImg.getOriginalFilename());
+	                Files.copy(extraImg.getInputStream(), extraPath, StandardCopyOption.REPLACE_EXISTING);
+	                fileService.uploadFileS3(extraImg, 2);
+	            }
+	        }
+	        product.setImages(imagesList.toString());
+	    }
+	    
 	    Product saveProduct = productService.saveProduct(product);
 
 	    if (!ObjectUtils.isEmpty(saveProduct)) {
@@ -380,7 +404,7 @@ public class AdminController {
 	                                "CREATE_PRODUCT", 
 	                                "Created new product: " + product.getTitle(), 
 	                                ipAddress);
-	        fileService.uploadFileS3(image	, 2); // Upload to S3 bucket type 2 for product images
+	        fileService.uploadFileS3(image, 2);
 	    } else {
 	        session.setAttribute("errorMsg", "something wrong on server");
 	        adminLogService.logAction(admin.getEmail(), admin.getName(), 
@@ -412,7 +436,6 @@ public class AdminController {
 	    // Calculate statistics efficiently
 	    List<Product> products = page.getContent();
 	    long activeProductsCount = products.stream().filter(Product::getIsActive).count();
-	    long lowStockCount = products.stream().filter(p -> p.getStock() < 10).count();
 
 
 	    // Check if each product has orders and create a map for the template
@@ -440,7 +463,6 @@ public class AdminController {
 	    m.addAttribute("products", products);
 	    m.addAttribute("productOrdersMap", productOrdersMap);
 	    m.addAttribute("activeProductsCount", activeProductsCount);
-	    m.addAttribute("lowStockCount", lowStockCount);
 	    m.addAttribute("pageNo", page.getNumber());
 	    m.addAttribute("pageSize", pageSize);
 	    m.addAttribute("totalElements", page.getTotalElements());
@@ -486,6 +508,7 @@ public class AdminController {
 
 	@PostMapping("/updateProduct")
 	public String updateProduct(@ModelAttribute Product product, @RequestParam("file") MultipartFile image,
+	        @RequestParam(value = "files", required = false) MultipartFile[] extraImages,
 	        HttpSession session, Model m, Principal p) {
 
 	    UserDtls admin = commonUtil.getLoggedInUserDetails(p);
@@ -499,6 +522,32 @@ public class AdminController {
 	                                "Failed to update product: " + product.getTitle() + " (invalid discount)", 
 	                                ipAddress);
 	    } else {
+	        // Handle extra images
+	        if (extraImages != null && extraImages.length > 0) {
+	            try {
+	                StringBuilder imagesList = new StringBuilder();
+	                String uploadDir = System.getProperty("user.dir") + "/uploads/product_img/";
+	                File uploadFolder = new File(uploadDir);
+	                if (!uploadFolder.exists()) { uploadFolder.mkdirs(); }
+	                
+	                for (MultipartFile extraImg : extraImages) {
+	                    if (!extraImg.isEmpty()) {
+	                        String extraUrl = commonUtil.getImageUrl(extraImg, BucketType.PRODUCT.getId());
+	                        if (imagesList.length() > 0) imagesList.append(",");
+	                        imagesList.append(extraUrl);
+	                        Path extraPath = Paths.get(uploadDir + extraImg.getOriginalFilename());
+	                        Files.copy(extraImg.getInputStream(), extraPath, StandardCopyOption.REPLACE_EXISTING);
+	                        fileService.uploadFileS3(extraImg, 2);
+	                    }
+	                }
+	                if (imagesList.length() > 0) {
+	                    product.setImages(imagesList.toString());
+	                }
+	            } catch (Exception e) {
+	                e.printStackTrace();
+	            }
+	        }
+	        
 	        Product updateProduct = productService.updateProduct(product, image);
 	        if (!ObjectUtils.isEmpty(updateProduct)) {
 	            session.setAttribute("succMsg", "Product update success");
@@ -743,45 +792,35 @@ public class AdminController {
 	@GetMapping("/")
 	public String index(Model m) {
 	    try {
-	        // Dashboard metrics - using existing methods or providing alternatives
 	        List<UserDtls> allUsers = userService.getUsers("ROLE_USER");
 	        m.addAttribute("totalUsers", allUsers.size());
-	        
-	        // Get all products count (you'll need to implement this or use existing method)
 	        m.addAttribute("totalProduct", productService.getAllProducts().size());
 	        m.addAttribute("totalOrders", orderService.getCountOrders());
-	        
-	        // Get all categories count
 	        m.addAttribute("totalCategory", categoryService.getAllActiveCategory().size());
 	        
-	        // Revenue metrics using existing methods
+	        // Revenue metrics
 	        Double totalRevenue = orderService.getTotalRevenue();
 	        Double todayRevenue = orderService.getTodayRevenue();
-	        
 	        m.addAttribute("totalRevenue", "฿" + (totalRevenue != null ? String.format("%.2f", totalRevenue) : "0.00"));
 	        m.addAttribute("todayRevenue", "฿" + (todayRevenue != null ? String.format("%.2f", todayRevenue) : "0.00"));
 	        m.addAttribute("todayOrders", orderService.getTodayOrdersCount());
 	        m.addAttribute("newUsersToday", userService.getNewUsersToday());
 	        
-	        // Recent users using existing method
+	        // Wallet/Transaction metrics
+	        Double purchaseRevenue = walletService.getTotalPurchaseRevenue();
+	        Long purchaseCount = walletService.getTotalPurchaseCount();
+	        Double topupAmount = walletService.getTotalTopupAmount();
+	        m.addAttribute("purchaseRevenue", purchaseRevenue != null ? purchaseRevenue : 0.0);
+	        m.addAttribute("purchaseCount", purchaseCount != null ? purchaseCount : 0L);
+	        m.addAttribute("topupAmount", topupAmount != null ? topupAmount : 0.0);
+	        
+	        // Recent transactions
+	        m.addAttribute("recentTransactions", walletService.getAllTransactions(20));
+	        
 	        List<UserDtls> recentUsers = userService.getRecentUsers(5);
 	        m.addAttribute("recentUsers", recentUsers);
 	        
-	        // Chart data using existing methods
-	        m.addAttribute("dailyRevenueData", orderService.getDailyRevenueData(7));
-	        m.addAttribute("dailyRevenueLabels", orderService.getDailyRevenueLabels(7));
-	        m.addAttribute("dailyOrdersData", orderService.getDailyOrdersData(7));
-	        m.addAttribute("dailyOrdersLabels", orderService.getDailyOrdersLabels(7));
-	        
-	        // For now, provide empty lists for top categories and products
-	        // You can implement these methods later
-	        m.addAttribute("topCategoriesData", new ArrayList<>());
-	        m.addAttribute("topCategoriesLabels", new ArrayList<>());
-	        m.addAttribute("topProductsData", new ArrayList<>());
-	        m.addAttribute("topProductsLabels", new ArrayList<>());
-	        
-	        
-	        // Add chart data
+	        // Chart data
 	        m.addAttribute("dailyRevenueData", orderService.getDailyRevenueData(7));
 	        m.addAttribute("dailyRevenueLabels", orderService.getDailyRevenueLabels(7));
 	        m.addAttribute("dailyOrdersData", orderService.getDailyOrdersData(7));
@@ -791,10 +830,8 @@ public class AdminController {
 	        m.addAttribute("topProductsData", productService.getTopProductsData());
 	        m.addAttribute("topProductsLabels", productService.getTopProductsLabels());
 	        
-	        
 	    } catch (Exception e) {
 	        e.printStackTrace();
-	        // Set default values in case of error
 	        m.addAttribute("totalUsers", 0);
 	        m.addAttribute("totalProduct", 0);
 	        m.addAttribute("totalOrders", 0);
@@ -803,6 +840,10 @@ public class AdminController {
 	        m.addAttribute("todayRevenue", "฿0.00");
 	        m.addAttribute("todayOrders", 0);
 	        m.addAttribute("newUsersToday", 0);
+	        m.addAttribute("purchaseRevenue", 0.0);
+	        m.addAttribute("purchaseCount", 0L);
+	        m.addAttribute("topupAmount", 0.0);
+	        m.addAttribute("recentTransactions", new ArrayList<>());
 	        m.addAttribute("recentUsers", new ArrayList<>());
 	        m.addAttribute("dailyRevenueData", new ArrayList<>());
 	        m.addAttribute("dailyRevenueLabels", new ArrayList<>());

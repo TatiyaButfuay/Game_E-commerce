@@ -9,116 +9,90 @@
 	<section>
 
 		<div class="container mt-5 p-5">
-			<form action="/user/save-order" method="post" id="orders" novalidate>
-				<div class="row">
-
-					<div class="col-md-6">
-
-
-						<div class="mb-3 row">
-							<p class="text-center fs-4">Billing Address</p>
-							<hr>
-							<div class="col p-1">
-								<label>First Name</label> <input type="text" name="firstName" required
-									class="form-control mt-1">
-							</div>
-							<div class="col p-1">
-								<label>Last Name</label> <input type="text" name="lastName" required
-									class="form-control mt-1">
-							</div>
+			<div class="row justify-content-center">
+				<div class="col-md-8">
+					<div class="card card-sh">
+						<div class="card-header text-center bg-primary text-white">
+							<h4 class="mb-0"><i class="fa-solid fa-wallet me-2"></i>Confirm Purchase</h4>
 						</div>
+						<div class="card-body">
+							<th:block th:if="${session.succMsg}">
+								<p class="text-success fw-bold text-center">[[${session.succMsg}]]</p>
+								<th:block th:text="${@commnServiceImpl.removeSessionMessage()}"></th:block>
+							</th:block>
+							<th:block th:if="${session.errorMsg}">
+								<p class="text-danger fw-bold text-center">[[${session.errorMsg}]]</p>
+								<th:block th:text="${@commnServiceImpl.removeSessionMessage()}"></th:block>
+							</th:block>
 
-						<div class="mb-3 row">
-							<div class="col p-1">
-								<label>Email</label> <input type="email" name="email" required
-									class="form-control col">
-							</div>
-							<div class="col p-1">
-								<label>Mobile Number</label> <input type="text" name="mobileNo" required
-									class="form-control col ms-2">
-							</div>
-						</div>
-
-						<div class="mb-3 row">
-							<div class="col p-1">
-								<label>Address</label> <input type="text" name="address" required
-									class="form-control col">
-							</div>
-							<div class="col p-1">
-								<label>City</label> <input type="text" name="city" required
-									class="form-control col ms-2">
-							</div>
-						</div>
-						<div class="mb-3 row">
-							<div class="col p-1">
-								<label>Province</label> <input type="text" name="state" required
-									class="form-control col">
-							</div>
-							<div class="col p-1">
-								<label>Postcode</label> <input type="number" name="pincode" required
-									class="form-control col ms-2">
-							</div>
-						</div>
-						<!-- </form> -->
-
-					</div>
-					<div class="col-md-6">
-						<p class="text-center fs-4">Payment Type</p>
-						<hr>
-						<div class="card">
-							<div class="card-body">
-								<table class="table table-borderless">
-									<tbody>
-										<tr>
-											<td>Total price</td>
-											<td>:</td>
-											<td><th:block th:utext="${@commnServiceImpl.bahtSign()}"></th:block> [[${orderPrice}]]</td>
-										</tr>
-<!-- 										<tr>
-											<td>Delivery Fee</td>
-											<td>:</td>
-											<td><th:block th:utext="${@commnServiceImpl.bahtSign()}"></th:block> 0</td>
-										</tr>
-
-										<tr>
-											<td>Tax</td>
-											<td>:</td>
-											<td><th:block th:utext="${@commnServiceImpl.bahtSign()}"></th:block> 0</td>
-										</tr> -->
-
-										<tr class="border-top">
-											<td>Total Price</td>
-											<td>:</td>
-											<td><th:block th:utext="${@commnServiceImpl.bahtSign()}"></th:block> [[${totalOrderPrice}]]</td>
-										</tr>
-									</tbody>
-								</table>
-							</div>
-						</div>
-
-						<div class="card shadow p-3 mb-5 mt-2 bg-body-tertiary rounded">
-
-							<div class="card-body">
-								<!-- <form action="/login" method="post"> -->
-								<div class="mb-3">
-									<label class="form-label">Select Payment Type</label> <select required
-										name="paymentType" class="form-control">
-										<option value="">--select--</option>
-										<option value="COD">Cash On Delivery</option>
-										<option value="ONLINE">Online Payment</option>
-									</select>
-
+							<!-- Order Summary -->
+							<div class="card mb-4">
+								<div class="card-body">
+									<h5 class="mb-3"><i class="fa-solid fa-receipt me-2"></i>Order Summary</h5>
+									<table class="table table-borderless">
+										<tbody>
+											<tr>
+												<td class="text-muted">Order Total:</td>
+												<td class="text-end fw-bold fs-5">
+													<th:block th:utext="${@commnServiceImpl.bahtSign()}"></th:block> [[${totalOrderPrice}]]
+												</td>
+											</tr>
+											<tr>
+												<td class="text-muted"><i class="fa-solid fa-wallet me-1"></i>Wallet Balance:</td>
+												<td class="text-end fw-bold fs-5" th:classappend="${walletBalance >= totalOrderPrice} ? 'text-success' : 'text-danger'">
+													<th:block th:utext="${@commnServiceImpl.bahtSign()}"></th:block> <span th:text="${#numbers.formatDecimal(walletBalance, 1, 2)}">0.00</span>
+												</td>
+											</tr>
+											<tr class="border-top">
+												<td class="fw-bold">After Purchase:</td>
+												<td class="text-end fw-bold fs-5" th:classappend="${walletBalance >= totalOrderPrice} ? 'text-success' : 'text-danger'">
+													<th:block th:utext="${@commnServiceImpl.bahtSign()}"></th:block> <span th:text="${#numbers.formatDecimal(walletBalance - totalOrderPrice, 1, 2)}">0.00</span>
+												</td>
+											</tr>
+										</tbody>
+									</table>
 								</div>
-
-								<button class="btn bg-primary text-white col-md-12">Place
-									Order</button>
-
 							</div>
+
+							<!-- Payment Info -->
+							<div class="card bg-light mb-4">
+								<div class="card-body text-center">
+									<i class="fa-solid fa-shield-halved fa-2x text-success mb-2"></i>
+									<p class="mb-1 fw-bold">Secure Wallet Payment</p>
+									<small class="text-muted">Amount will be deducted from your wallet balance instantly</small>
+								</div>
+							</div>
+
+							<!-- Purchase Actions -->
+							<th:block th:if="${walletBalance >= totalOrderPrice}">
+								<form action="/user/save-order" method="post">
+									<input type="hidden" name="paymentType" value="WALLET">
+									<button type="submit" class="btn btn-success btn-lg col-md-12 mb-2">
+										<i class="fa-solid fa-check-circle me-2"></i>Confirm Purchase - <th:block th:utext="${@commnServiceImpl.bahtSign()}"></th:block>[[${totalOrderPrice}]]
+									</button>
+								</form>
+								<a href="/user/cart" class="btn btn-outline-secondary col-md-12">
+									<i class="fa-solid fa-arrow-left me-2"></i>Back to Cart
+								</a>
+							</th:block>
+
+							<th:block th:unless="${walletBalance >= totalOrderPrice}">
+								<div class="alert alert-danger text-center">
+									<i class="fa-solid fa-triangle-exclamation me-2"></i>
+									<strong>Insufficient Balance!</strong><br>
+									You need <th:block th:utext="${@commnServiceImpl.bahtSign()}"></th:block><span th:text="${#numbers.formatDecimal(totalOrderPrice - walletBalance, 1, 2)}">0.00</span> more to complete this purchase.
+								</div>
+								<a href="/user/wallet" class="btn btn-primary btn-lg col-md-12 mb-2">
+									<i class="fa-solid fa-plus-circle me-2"></i>Top Up Wallet
+								</a>
+								<a href="/user/cart" class="btn btn-outline-secondary col-md-12">
+									<i class="fa-solid fa-arrow-left me-2"></i>Back to Cart
+								</a>
+							</th:block>
 						</div>
 					</div>
-
 				</div>
-			</form>
+			</div>
 		</div>
 
 	</section>
